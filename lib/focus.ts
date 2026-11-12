@@ -58,6 +58,10 @@ const LEGACY: Record<string, CategoryId> = {
   exercise: "health",
 };
 
+/** Old teen-app blocks (meals, sleep, chores…) that neither app shows any more. */
+const HIDDEN_CATEGORIES = new Set(["free_time", "chores", "wind_down", "sleep", "meal"]);
+export const isHiddenCategory = (category: string) => HIDDEN_CATEGORIES.has(category);
+
 export function categoryOf(category: string): CategoryId {
   if (category in CATEGORIES) return category as CategoryId;
   return LEGACY[category] ?? "work";

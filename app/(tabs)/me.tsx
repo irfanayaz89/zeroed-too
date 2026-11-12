@@ -215,7 +215,7 @@ export default function MeScreen() {
       </Sheet>
 
       <Sheet visible={sheet === "delete"} onClose={() => setSheet(null)} testID="delete-sheet">
-        <SheetTitle title="Delete your account?" sub="This removes every block, note and score from Zeroed's servers. It can't be undone. Type DELETE to confirm." />
+        <SheetTitle title="Delete your account?" sub="This removes every block, note and score, in Zeroed and in Zero'd. It can't be undone. Type DELETE to confirm." />
         <View style={{ gap: 8, marginBottom: 16 }}>
           <FieldLabel>Confirm</FieldLabel>
           <Field testID="delete-input" value={delText} onChangeText={setDelText} autoCapitalize="characters" autoCorrect={false} placeholder="DELETE" />

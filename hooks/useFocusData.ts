@@ -8,6 +8,7 @@ import {
   dateKey,
   dayStats,
   isGood,
+  isHiddenCategory,
   nowMinutes,
   overallScore,
   sessionsOn,
@@ -25,7 +26,8 @@ export function useBlocks() {
     queryFn: async () => {
       const { data, error } = await supabase.from("timetable_blocks").select("*").eq("user_id", user!.id);
       if (error) throw error;
-      return (data ?? []) as TimetableBlock[];
+      // The database is shared with the teen app; skip its old full-day blocks.
+      return ((data ?? []) as TimetableBlock[]).filter((b) => !isHiddenCategory(b.category));
     },
   });
 }

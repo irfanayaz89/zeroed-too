@@ -6,7 +6,7 @@ Spec: ADULT-APP-CONTEXT.md. Same features as the teen Focus'd V1, with no charac
 
 - [ ] App name ("Zeroed" is a placeholder)
 - [ ] Default accent: Glacier (current) or Cobalt
-- [ ] Supabase: new project (recommended) or the shared one
+- [x] Supabase: shares the Zero'd project so one account works in both apps (see supabase/README.md)
 - [ ] Bundle ID (`com.zeronoiselabs.zeroedtoo` is a placeholder)
 - [ ] App icon and splash screen
 
@@ -17,7 +17,7 @@ Spec: ADULT-APP-CONTEXT.md. Same features as the teen Focus'd V1, with no charac
 - [x] Character removed (Dot, balloon, mood faces)
 - [x] Line icons, no emoji, short calm copy
 - [x] Theme: Graphite (default) and Black, seven accents, Sora and Manrope
-- [x] Supabase schema trimmed (no age group, hobbies or buddy name) and `extra_minutes` added
+- [x] Shared database: one additive migration (`daily_logs.extra_minutes`); old teen full-day blocks hidden
 
 ## Auth
 
