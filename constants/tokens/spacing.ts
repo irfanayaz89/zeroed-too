@@ -1,0 +1,17 @@
+export const spacing = {
+  none: 0,
+  "2xs": 2,
+  xs: 4,
+  gapSm: 6,
+  gapMd: 10,
+  sm: 8,
+  mdSm: 12,
+  row: 14,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  "2xl": 40,
+  screenX: 20,
+  screenBottom: 100,
+  sheetBottom: 40,
+} as const;

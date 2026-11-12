@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zeroed V1 — Checklist</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      color: #1a1a1a;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 16px 0; }
+    h2 { font-size: 1.1rem; margin: 20px 0 12px; color: #333; }
+    .item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 8px 0;
+      padding: 6px 0;
+    }
+    .item input[type="checkbox"] {
+      margin-top: 4px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .item label { cursor: pointer; flex: 1; }
+    .item.done label { color: #888; text-decoration: line-through; }
+  </style>
+</head>
+<body>
+  <h1>Zeroed V1 — Feature Breakdown</h1>
+  <hr />
+
+  <section data-section="1">
+    <h2>1. Auth</h2>
+    <div class="item"><input type="checkbox" id="c-1-1" /><label for="c-1-1">Email sign up + sign in (Supabase Auth)</label></div>
+    <div class="item"><input type="checkbox" id="c-1-2" /><label for="c-1-2">Session persistence + auto token refresh</label></div>
+    <div class="item"><input type="checkbox" id="c-1-3" /><label for="c-1-3">COPPA notice for kids under 13</label></div>
+    <div class="item"><input type="checkbox" id="c-1-4" /><label for="c-1-4">Sign out + delete account (double confirmation)</label></div>
+  </section>
+
+  <section data-section="2">
+    <h2>2. Onboarding</h2>
+    <div class="item"><input type="checkbox" id="c-2-1" /><label for="c-2-1">5-screen flow with progress dots (welcome → account → about you → hobbies → challenge)</label></div>
+    <div class="item"><input type="checkbox" id="c-2-2" /><label for="c-2-2">Auto-generate starter timetable by age group (weekday + weekend)</label></div>
+    <div class="item"><input type="checkbox" id="c-2-3" /><label for="c-2-3">"Building your day…" animated loading screen</label></div>
+    <div class="item"><input type="checkbox" id="c-2-4" /><label for="c-2-4">Schedule preview — accept or start fresh</label></div>
+  </section>
+
+  <section data-section="3">
+    <h2>3. Today Tab</h2>
+    <div class="item"><input type="checkbox" id="c-3-1" /><label for="c-3-1">Focus Score banner (circular ring, 0–100, real-time updates)</label></div>
+    <div class="item"><input type="checkbox" id="c-3-2" /><label for="c-3-2">"What should I do right now?" button (shows current/next block context)</label></div>
+    <div class="item"><input type="checkbox" id="c-3-3" /><label for="c-3-3">Daily timeline — block cards with color-coded categories, time, checkbox</label></div>
+    <div class="item"><input type="checkbox" id="c-3-4" /><label for="c-3-4">Block detail bottom sheet (add note, mark complete/skipped)</label></div>
+    <div class="item"><input type="checkbox" id="c-3-5" /><label for="c-3-5">Hobby prompt card ("Daily Spark" from DB)</label></div>
+  </section>
+
+  <section data-section="4">
+    <h2>4. Plan Tab</h2>
+    <div class="item"><input type="checkbox" id="c-4-1" /><label for="c-4-1">Weekday/weekend toggle + day selector</label></div>
+    <div class="item"><input type="checkbox" id="c-4-2" /><label for="c-4-2">Add/edit/delete blocks (title, category, times, days, reminder settings)</label></div>
+    <div class="item"><input type="checkbox" id="c-4-3" /><label for="c-4-3">Block list sorted by time with swipe-to-delete</label></div>
+    <div class="item"><input type="checkbox" id="c-4-4" /><label for="c-4-4">Conflict detection (overlapping blocks warning)</label></div>
+  </section>
+
+  <section data-section="5">
+    <h2>5. Progress Tab</h2>
+    <div class="item"><input type="checkbox" id="c-5-1" /><label for="c-5-1">Daily reflection check-in (mood emoji + optional note)</label></div>
+    <div class="item"><input type="checkbox" id="c-5-2" /><label for="c-5-2">Focus Score summary (today, weekly average, personal best)</label></div>
+    <div class="item"><input type="checkbox" id="c-5-3" /><label for="c-5-3">Streak tracking with milestone celebrations (3, 7, 14, 30… days)</label></div>
+    <div class="item"><input type="checkbox" id="c-5-4" /><label for="c-5-4">Weekly bar chart + mood trend row</label></div>
+    <div class="item"><input type="checkbox" id="c-5-5" /><label for="c-5-5">Snooze report card</label></div>
+  </section>
+
+  <section data-section="6">
+    <h2>6. Profile Tab</h2>
+    <div class="item"><input type="checkbox" id="c-6-1" /><label for="c-6-1">User info (name, age group, hobbies, challenge) — all editable</label></div>
+    <div class="item"><input type="checkbox" id="c-6-2" /><label for="c-6-2">Parent weekly summary link (shareable URL or email)</label></div>
+    <div class="item"><input type="checkbox" id="c-6-3" /><label for="c-6-3">Notification settings (global toggle, default style, quiet hours)</label></div>
+    <div class="item"><input type="checkbox" id="c-6-4" /><label for="c-6-4">Dark mode toggle</label></div>
+    <div class="item"><input type="checkbox" id="c-6-5" /><label for="c-6-5">Export data + privacy/terms links</label></div>
+  </section>
+
+  <section data-section="7">
+    <h2>7. Notifications</h2>
+    <div class="item"><input type="checkbox" id="c-7-1" /><label for="c-7-1">Local push reminders: pre-alert + start-time per block</label></div>
+    <div class="item"><input type="checkbox" id="c-7-2" /><label for="c-7-2">3 styles: Gentle Nudge, Alarm, Motivational (with age-based quotes)</label></div>
+    <div class="item"><input type="checkbox" id="c-7-3" /><label for="c-7-3">Quiet hours enforcement</label></div>
+    <div class="item"><input type="checkbox" id="c-7-4" /><label for="c-7-4">Auto-reschedule on app launch + cancel on block edit/delete</label></div>
+  </section>
+
+  <section data-section="8">
+    <h2>8. Dark Mode</h2>
+    <div class="item"><input type="checkbox" id="c-8-1" /><label for="c-8-1">Full theme toggle (light/dark) across all screens, modals, and components</label></div>
+    <div class="item"><input type="checkbox" id="c-8-2" /><label for="c-8-2">Preference saved to profile + AsyncStorage</label></div>
+    <div class="item"><input type="checkbox" id="c-8-3" /><label for="c-8-3">Dark palette: #1A1A2E background, #16213E surfaces, accent colors unchanged</label></div>
+  </section>
+
+  <section data-section="9">
+    <h2>9. Animations & Polish</h2>
+    <div class="item"><input type="checkbox" id="c-9-1" /><label for="c-9-1">Block completion: checkbox animation + mini confetti + score increment</label></div>
+    <div class="item"><input type="checkbox" id="c-9-2" /><label for="c-9-2">Focus Score ring animated fill + color transitions</label></div>
+    <div class="item"><input type="checkbox" id="c-9-3" /><label for="c-9-3">Current block pulsing glow</label></div>
+    <div class="item"><input type="checkbox" id="c-9-4" /><label for="c-9-4">Streak milestone full-screen confetti</label></div>
+    <div class="item"><input type="checkbox" id="c-9-5" /><label for="c-9-5">Skeleton loaders for all data-loading states</label></div>
+  </section>
+
+  <script>
+    const KEY = 'zeroed-checklist';
+    const inputs = document.querySelectorAll('input[type="checkbox"]');
+    const items = document.querySelectorAll('.item');
+
+    function save() {
+      const state = {};
+      inputs.forEach((el) => { state[el.id] = el.checked; });
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+      items.forEach((el, i) => {
+        el.classList.toggle('done', inputs[i].checked);
+      });
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        inputs.forEach((el) => {
+          if (state[el.id]) el.checked = true;
+        });
+      } catch (e) {}
+      items.forEach((el, i) => {
+        el.classList.toggle('done', inputs[i].checked);
+      });
+    }
+
+    inputs.forEach((el) => el.addEventListener('change', save));
+    load();
+  </script>
+</body>
+</html>

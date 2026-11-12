@@ -1,0 +1,42 @@
+---
+description: expo-glass-effect GlassView constraints (isInteractive, opacity)
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# expo-glass-effect (GlassView) constraints
+
+When using `GlassView` or `GlassContainer` from `expo-glass-effect`:
+
+## 1. isInteractive: set once, remount to toggle
+
+The `isInteractive` prop can only be set once on mount and **cannot be changed dynamically** after the component has been rendered. To toggle interactive behavior, remount the component with a different `key`.
+
+```tsx
+// ❌ BAD – toggling isInteractive dynamically causes incorrect behavior
+<GlassView isInteractive={isInteractive} />
+
+// ✅ GOOD – remount with a key when isInteractive changes
+<GlassView key={isInteractive ? 'interactive' : 'static'} isInteractive={isInteractive} />
+```
+
+## 2. No opacity &lt; 1 on GlassView or its parents
+
+Do **not** use `opacity` values less than `1` on `GlassView` or any parent view. It causes the effect to render incorrectly (see Apple's UIVisualEffectView docs and [expo/expo#41024](https://github.com/expo/expo/issues/41024)).
+
+For fade in/out, use the **`animate`** and **`animationDuration`** props in **`glassEffectStyle`** instead of opacity.
+
+```tsx
+// ❌ BAD – opacity on GlassView or parent breaks the effect
+<View style={{ opacity: 0.8 }}>
+  <GlassView style={styles.glass} />
+</View>
+
+// ✅ GOOD – use glassEffectStyle for fading
+<GlassView
+  style={styles.glass}
+  glassEffectStyle={{ animate: true, animationDuration: 200 }}
+/>
+```
+
+Keep `GlassView` and its ancestor views at `opacity: 1` (or omit opacity).
