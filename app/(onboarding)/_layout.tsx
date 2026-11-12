@@ -1,8 +1,8 @@
 import { Stack } from "expo-router";
-import { useFd } from "@/lib/prefs-context";
+import { useZ } from "@/lib/prefs-context";
 
 export default function OnboardingLayout() {
-  const { c } = useFd();
+  const { c } = useZ();
   return (
     <Stack screenOptions={{ headerShown: false, animation: "slide_from_right", contentStyle: { backgroundColor: c.bg } }}>
       <Stack.Screen name="setup" />

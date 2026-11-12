@@ -22,12 +22,12 @@ function inQuiet(min: number, start: number, end: number) {
 }
 
 /**
- * One gentle nudge per session: a notification 5 minutes before each of
- * today's remaining sessions. Off in quiet hours or when turned off in Me.
+ * Local notifications for today's remaining blocks: a heads-up a few minutes
+ * before each one, and (if switched on) a nudge 5 minutes in if the app wasn't
+ * opened during the block. Nothing during quiet hours.
  */
 export function useNudges() {
-  const { user, profile } = useAuth();
-  const buddy = profile?.buddy_name?.trim() || "Dot";
+  const { user } = useAuth();
   const { prefs } = usePrefs();
   const blocks = useBlocks();
   const logs = useLogs();
@@ -36,11 +36,21 @@ export function useNudges() {
   const due = useMemo(() => {
     if (!blocks.data || !logs.data) return [];
     const now = nowMinutes();
-    return sessionsOn(new Date(), blocks.data, logs.data)
-      .filter((s) => s.status === "todo" && s.start - 5 > now)
-      .filter((s) => !inQuiet(s.start - 5, prefs.quietStart, prefs.quietEnd))
-      .map((s) => ({ key: s.key, title: s.block.title, start: s.start, mins: s.mins }));
-  }, [blocks.data, logs.data, prefs.quietStart, prefs.quietEnd]);
+    const out: { at: number; title: string; body: string }[] = [];
+    for (const s of sessionsOn(new Date(), blocks.data, logs.data)) {
+      if (s.status !== "todo") continue;
+      const quiet = (m: number) => prefs.quiet && inQuiet(m, prefs.quietStart, prefs.quietEnd);
+      const before = s.start - prefs.headsUp;
+      if (prefs.nudge && before > now && !quiet(before)) {
+        out.push({ at: before, title: `${s.block.title} at ${fmt(s.start)}`, body: `Starts in ${prefs.headsUp} minutes.` });
+      }
+      const late = s.start + 5;
+      if (prefs.notStarted && !s.log?.started_at && late > now && late < s.end && !quiet(late)) {
+        out.push({ at: late, title: `${s.block.title} started 5 minutes ago`, body: "Open Zeroed to get going, or move it to later." });
+      }
+    }
+    return out;
+  }, [blocks.data, logs.data, prefs.nudge, prefs.headsUp, prefs.notStarted, prefs.quiet, prefs.quietStart, prefs.quietEnd]);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -48,23 +58,16 @@ export function useNudges() {
     (async () => {
       try {
         await Notifications.cancelAllScheduledNotificationsAsync();
-        if (!user || !prefs.nudge || !due.length) return;
+        if (!user || !due.length) return;
         // Permission is asked once, with an example, during onboarding (or from Me). Never cold.
         const { granted } = await Notifications.getPermissionsAsync();
         if (!granted || cancelled) return;
         const midnight = new Date();
         midnight.setHours(0, 0, 0, 0);
-        for (const s of due) {
+        for (const n of due) {
           await Notifications.scheduleNotificationAsync({
-            content: {
-              title: `${s.title} at ${fmt(s.start)}`,
-              body: `Starts in 5 minutes. ${buddy}'s ready when you are.`,
-              data: { url: "/now" },
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: new Date(midnight.getTime() + (s.start - 5) * 60000),
-            },
+            content: { title: n.title, body: n.body, data: { url: "/now" } },
+            trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(midnight.getTime() + n.at * 60000) },
           });
         }
       } catch {
@@ -74,5 +77,5 @@ export function useNudges() {
     return () => {
       cancelled = true;
     };
-  }, [user, prefs.nudge, due, today, buddy]);
+  }, [user, due, today]);
 }

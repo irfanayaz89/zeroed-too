@@ -8,7 +8,6 @@ export interface SetupDraft {
   perDay: number;
   len: number;
   challenge: string | null;
-  buddy: string;
   plan: PlannedBlock[] | null;
 }
 

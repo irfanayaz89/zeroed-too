@@ -7,31 +7,28 @@ import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useFonts } from "expo-font";
-import { BagelFatOne_400Regular } from "@expo-google-fonts/bagel-fat-one";
-import {
-  Gabarito_500Medium,
-  Gabarito_600SemiBold,
-  Gabarito_700Bold,
-  Gabarito_800ExtraBold,
-} from "@expo-google-fonts/gabarito";
+import { Sora_300Light, Sora_400Regular, Sora_600SemiBold } from "@expo-google-fonts/sora";
+import { Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from "@expo-google-fonts/manrope";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { Btn, T } from "@/components/fd/ui";
-import { ToastProvider } from "@/components/fd/toast";
+import { Btn, T } from "@/components/z/ui";
+import { ToastProvider } from "@/components/z/toast";
 import { queryClient } from "@/lib/query-client";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
-import { PrefsProvider, usePrefs } from "@/lib/prefs-context";
-import { FocusSessionProvider } from "@/lib/focus-session";
+import { PrefsProvider, useZ, usePrefs } from "@/lib/prefs-context";
 import { useNudges } from "@/hooks/useNudges";
+import { useBlockLiveActivity } from "@/hooks/useBlockLiveActivity";
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { colors, isDark, loaded } = usePrefs();
+  const { c } = useZ();
+  const { loaded } = usePrefs();
   const { session, profile, profileError, isLoading, refreshProfile } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const splashHidden = useRef(false);
   useNudges();
+  useBlockLiveActivity();
 
   useEffect(() => {
     if (isLoading || !loaded) return;
@@ -58,9 +55,9 @@ function RootLayoutNav() {
 
   if (session && !profile && profileError) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", gap: 16, padding: 24, backgroundColor: colors.bg }}>
-        <T v="h2">Couldn&apos;t load your profile.</T>
-        <T color="sub">Check your connection and try again.</T>
+      <View style={{ flex: 1, justifyContent: "center", gap: 16, padding: 24, backgroundColor: c.bg }}>
+        <T v="display">Couldn&apos;t load your profile.</T>
+        <T color="text2">Check your connection and try again.</T>
         <Btn title="Try again" onPress={refreshProfile} />
       </View>
     );
@@ -68,14 +65,14 @@ function RootLayoutNav() {
 
   return (
     <>
-      <StatusBar style={isDark ? "light" : "dark"} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+      <StatusBar style="light" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(onboarding)" options={{ gestureEnabled: false }} />
         <Stack.Screen name="focus" options={{ presentation: "fullScreenModal", animation: "fade", gestureEnabled: false }} />
-        <Stack.Screen name="add-block" options={{ presentation: "modal" }} />
+        <Stack.Screen name="add-block" options={{ presentation: "modal", contentStyle: { backgroundColor: c.surface } }} />
         <Stack.Screen name="save-account" options={{ presentation: "modal" }} />
         <Stack.Screen name="+not-found" />
       </Stack>
@@ -84,15 +81,13 @@ function RootLayoutNav() {
 }
 
 function Shell() {
-  const { colors } = usePrefs();
+  const { c } = useZ();
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: c.bg }}>
       <KeyboardProvider>
         <AuthProvider>
           <ToastProvider>
-            <FocusSessionProvider>
-              <RootLayoutNav />
-            </FocusSessionProvider>
+            <RootLayoutNav />
           </ToastProvider>
         </AuthProvider>
       </KeyboardProvider>
@@ -102,11 +97,13 @@ function Shell() {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    BagelFatOne_400Regular,
-    Gabarito_500Medium,
-    Gabarito_600SemiBold,
-    Gabarito_700Bold,
-    Gabarito_800ExtraBold,
+    Sora_300Light,
+    Sora_400Regular,
+    Sora_600SemiBold,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
   });
 
   if (!fontsLoaded) return null;

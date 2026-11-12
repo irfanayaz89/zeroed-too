@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn } from "react-native-reanimated";
-import { Screen, T } from "@/components/fd/ui";
-import { Balloon } from "@/components/fd/Balloon";
+import { FocusArc } from "@/components/z/FocusArc";
+import { Screen, T } from "@/components/z/ui";
+import { arcColor } from "@/constants/theme";
 import { FREE_WINDOWS, generatePlan } from "@/lib/focus";
 import { getDraft, setDraft } from "@/lib/onboarding-draft";
+import { useZ } from "@/lib/prefs-context";
 
 export default function Building() {
   const router = useRouter();
+  const { c } = useZ();
+  const { width } = useWindowDimensions();
   const [i, setI] = useState(0);
   const [msgs] = useState(() => {
     const d = getDraft();
@@ -18,9 +22,9 @@ export default function Building() {
     const n = d.plan?.reduce((a, b) => a + b.days_of_week.length, 0) ?? 0;
     return [
       `Fitting ${d.focus.slice(0, 2).join(" and ")} into ${where}`,
-      `Making sessions ${d.len} minutes long`,
+      `Making blocks ${d.len} minutes long`,
       `Keeping it to ${d.perDay} a day, with room to breathe`,
-      `Blowing up ${n} balloons for ${d.buddy || "Dot"}`,
+      `${n} blocks for your first week`,
     ];
   });
 
@@ -39,20 +43,19 @@ export default function Building() {
     };
   }, [router, msgs.length]);
 
+  const p = 0.2 + (i / Math.max(1, msgs.length - 1)) * 0.8;
   return (
     <Screen scroll={false}>
       <View style={{ flex: 1 }} />
-      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 4, height: 220 }}>
-        <Balloon progress={0.3 + i * 0.15} type="study" face="calm" width={110} />
-        <View style={{ marginBottom: 24 }}>
-          <Balloon progress={0.4 + i * 0.15} type="hobby" face="happy" width={130} />
-        </View>
-        <Balloon progress={0.2 + i * 0.15} type="reading" face="start" width={110} />
+      <View style={{ alignItems: "center" }}>
+        <FocusArc width={Math.min(280, width - 80)} progress={p} color={arcColor(p, c)} />
       </View>
-      <View style={{ alignItems: "center", gap: 8 }}>
-        <T v="title">Building your plan…</T>
+      <View style={{ alignItems: "center", gap: 8, marginTop: 10 }}>
+        <T v="page">Building your plan</T>
         <Animated.View key={i} entering={FadeIn.duration(250)}>
-          <T color="sub">{msgs[i]}</T>
+          <T v="body" color="text2" style={{ textAlign: "center" }}>
+            {msgs[i]}
+          </T>
         </Animated.View>
       </View>
       <View style={{ flex: 1 }} />

@@ -1,16 +1,14 @@
 import React, { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useRouter } from "expo-router";
-import { Btn, Field, Label, Row, Screen, T } from "@/components/fd/ui";
-import { Dot } from "@/components/fd/DotCharacter";
-import { useToast } from "@/components/fd/toast";
+import { Btn, Field, FieldLabel, LinkBtn, RoundBtn, Row, Screen, T } from "@/components/z/ui";
+import { useToast } from "@/components/z/toast";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import { useFd } from "@/lib/prefs-context";
-import { DOT_START } from "@/constants/focusd";
+import { useZ } from "@/lib/prefs-context";
 
 export default function SignIn() {
-  const { c } = useFd();
+  const { c } = useZ();
   const router = useRouter();
   const toast = useToast();
   const { signIn } = useAuth();
@@ -37,24 +35,19 @@ export default function SignIn() {
   return (
     <Screen>
       <Row>
-        <Pressable
-          accessibilityLabel="Back"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(auth)/welcome"))}
-          style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: c.card, alignItems: "center", justifyContent: "center" }}
-        >
-          <T v="h2" style={{ marginTop: -3 }}>‹</T>
-        </Pressable>
+        <RoundBtn icon="back" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(auth)/welcome"))} />
       </Row>
-      <View style={{ height: 170, alignItems: "center", justifyContent: "flex-end", zIndex: 10 }}>
-        <Dot size={220} grow={DOT_START} />
+      <T v="page" style={{ marginTop: 12 }}>Welcome back</T>
+      <View style={{ gap: 8 }}>
+        <FieldLabel>Email</FieldLabel>
+        <Field value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" testID="signin-email" />
       </View>
-      <T v="title" style={{ textAlign: "center" }}>Welcome back</T>
-      <Label>Email</Label>
-      <Field value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" testID="signin-email" />
-      <Label>Password</Label>
-      <Field value={pw} onChangeText={setPw} placeholder="Password" secureTextEntry autoComplete="current-password" testID="signin-password" />
-      {error ? <T v="small" color={c.danger}>{error}</T> : null}
-      <Btn kind="link" title="Forgot password?" onPress={reset} style={{ alignSelf: "flex-end" }} />
+      <View style={{ gap: 8 }}>
+        <FieldLabel>Password</FieldLabel>
+        <Field value={pw} onChangeText={setPw} placeholder="Password" secureTextEntry autoComplete="current-password" testID="signin-password" />
+      </View>
+      {error ? <T v="small" color={c.bad}>{error}</T> : null}
+      <LinkBtn title="Forgot password?" onPress={reset} />
       <View style={{ flex: 1 }} />
       <Btn title="Sign in" onPress={submit} loading={loading} disabled={!email || !pw} testID="signin-submit" />
     </Screen>

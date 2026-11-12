@@ -1,15 +1,17 @@
 import React, { useState } from "react";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 import { Redirect } from "expo-router";
-import { FIXED, FOCUS_TYPES, FS } from "@/constants/focusd";
-import { Btn, Card, Row, Screen, T } from "@/components/fd/ui";
-import { useToast } from "@/components/fd/toast";
+import { CATEGORIES, FONTS, FS } from "@/constants/theme";
+import { useToast } from "@/components/z/toast";
+import { Btn, Card, LinkBtn, Screen, T } from "@/components/z/ui";
 import { useFocusActions } from "@/hooks/useFocusData";
 import { useAuth } from "@/lib/auth-context";
-import { DAY_SHORT, MON_FIRST, fmt, toMin } from "@/lib/focus";
+import { DAY_SHORT, MON_FIRST, blockMinutes, dur, fmtShort, toMin } from "@/lib/focus";
 import { getDraft } from "@/lib/onboarding-draft";
+import { useZ } from "@/lib/prefs-context";
 
 export default function Preview() {
+  const { c } = useZ();
   const d = getDraft();
   const toast = useToast();
   const { refreshProfile } = useAuth();
@@ -25,8 +27,9 @@ export default function Preview() {
       .sort((a, b) => a.start - b.start)
   );
   const total = byDay.reduce((a, l) => a + l.length, 0);
+  const minutes = plan.reduce((a, b) => a + b.days_of_week.length * blockMinutes(b), 0);
 
-  // "Just one session": the next session in the plan, on that one weekday only.
+  // "Just one block": the next block in the plan, on that one weekday only.
   const one = (() => {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -51,7 +54,6 @@ export default function Preview() {
         sessions_per_day: d.perDay,
         session_length: d.len,
         focus_struggle: d.challenge,
-        buddy_name: d.buddy,
         onboarding_complete: true,
       });
       await refreshProfile();
@@ -64,32 +66,35 @@ export default function Preview() {
   return (
     <Screen>
       <View>
-        <T v="eyebrow">Plan preview</T>
-        <T v="display">Here&apos;s your week</T>
+        <T v="caps" style={{ fontSize: FS.caps }}>Plan preview</T>
+        <T v="page">Here&apos;s your week</T>
       </View>
-      <T color="sub">{total} focus sessions, all in the times you picked. You can change anything later.</T>
-      {byDay.map((list, i) => (
-        <Card key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 }}>
-          <T v="bodyStrong" style={{ width: 40 }}>{DAY_SHORT[i]}</T>
-          <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-            {list.length ? (
-              list.map((b) => (
-                <View key={b.title + b.start} style={{ backgroundColor: FOCUS_TYPES[b.category].color, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 10 }}>
-                  <T v="small" color={FIXED.dotInk} style={{ fontFamily: "Gabarito_800ExtraBold", fontSize: FS.chip }}>
-                    {fmt(b.start, false)} {b.title}
-                  </T>
-                </View>
-              ))
-            ) : (
-              <T v="small">Rest day</T>
-            )}
-          </View>
-        </Card>
-      ))}
-      <Row>
-        <Btn flex title="Looks good" loading={busy === "plan"} disabled={!!busy} onPress={() => finish(true)} testID="accept-plan" />
-      </Row>
-      <Btn kind="link" title={one ? `Start with just ${one.title}` : "Start with an empty week"} disabled={!!busy} loading={busy === "one"} onPress={() => finish(false)} testID="one-session" />
+      <T v="body" color="text2" style={{ fontSize: FS.body, lineHeight: 22 }}>
+        {total} focus blocks, {dur(minutes)} in all, inside the times you picked. You can change anything later.
+      </T>
+      <View style={{ gap: 8 }}>
+        {byDay.map((list, i) => (
+          <Card key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 }}>
+            <Text style={{ width: 36, fontFamily: FONTS.bold, fontSize: FS.sm, color: c.text2 }}>{DAY_SHORT[i]}</Text>
+            <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {list.length ? (
+                list.map((b) => (
+                  <View key={b.title + b.start} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.surface2, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 }}>
+                    <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: CATEGORIES[b.category].color }} />
+                    <Text style={{ fontFamily: FONTS.bold, fontSize: FS.caption, color: c.text }}>
+                      {fmtShort(b.start)} {b.title}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <T v="small">Rest day</T>
+              )}
+            </View>
+          </Card>
+        ))}
+      </View>
+      <Btn title="Looks good" loading={busy === "plan"} disabled={!!busy} onPress={() => finish(true)} testID="accept-plan" />
+      <LinkBtn title={one ? `Start with just ${one.title}` : "Start with an empty week"} onPress={() => !busy && finish(false)} testID="one-block" />
     </Screen>
   );
 }

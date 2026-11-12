@@ -1,27 +1,24 @@
 import React, { useMemo, useState } from "react";
-import { Platform, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
-import { FIXED } from "@/constants/focusd";
-import { Btn, Screen, T } from "@/components/fd/ui";
-import { StepTop } from "@/components/fd/onboarding";
-import { MiniBalloon } from "@/components/fd/Balloon";
-import { usePrefs, useFd } from "@/lib/prefs-context";
-import { fmt, toMin } from "@/lib/focus";
+import { FONTS, FS } from "@/constants/theme";
+import { Icon } from "@/components/z/icons";
+import { ONBOARDING_STEPS, StepHead, StepTop } from "@/components/z/onboarding";
+import { Btn, LinkBtn, Screen, T } from "@/components/z/ui";
+import { FULL_DAY, fmt, toMin } from "@/lib/focus";
 import { getDraft } from "@/lib/onboarding-draft";
+import { usePrefs, useZ } from "@/lib/prefs-context";
 
-const DAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-/** Asks for notifications with a concrete, personal example instead of a cold system prompt. */
+/** Asks for notifications with a concrete example instead of a cold system prompt. */
 export default function Nudges() {
-  const { c } = useFd();
+  const { c } = useZ();
   const router = useRouter();
   const { setPrefs } = usePrefs();
   const [busy, setBusy] = useState(false);
   const d = getDraft();
-  const buddy = d?.buddy || "Dot";
 
-  // The first session in the new plan from now on.
+  // The first block in the new plan from now on.
   const first = useMemo(() => {
     const plan = d?.plan ?? [];
     const now = new Date();
@@ -33,7 +30,7 @@ export default function Nudges() {
         .map((b) => ({ b, start: toMin(b.start_time) }))
         .filter((x) => i > 0 || x.start - 5 > nowMin)
         .sort((a, b) => a.start - b.start);
-      if (todays.length) return { ...todays[0], when: i === 0 ? "today" : i === 1 ? "tomorrow" : `on ${DAY[dow]}` };
+      if (todays.length) return { ...todays[0], when: i === 0 ? "today" : i === 1 ? "tomorrow" : `on ${FULL_DAY[dow]}` };
     }
     return null;
   }, [d?.plan]);
@@ -50,29 +47,24 @@ export default function Nudges() {
         granted = false;
       }
     }
-    setPrefs({ nudge: granted });
+    setPrefs({ nudge: granted, notStarted: granted });
     setBusy(false);
     done();
   };
 
   return (
     <Screen>
-      <StepTop step={5} of={6} />
-      <View style={{ gap: 6, marginTop: 8 }}>
-        <T v="title">Want a nudge before each session?</T>
-        <T color="sub">One quiet reminder 5 minutes before, and nothing during your quiet hours. That&apos;s the only notification {buddy} sends.</T>
-      </View>
+      <StepTop step={5} of={ONBOARDING_STEPS} />
+      <StepHead title="A heads-up before each block?" lead="One quiet reminder 5 minutes before, and nothing during quiet hours (10 pm to 7 am)." />
       <View style={{ flex: 1, justifyContent: "center", minHeight: 200 }}>
-        <View style={{ backgroundColor: c.night, borderRadius: 22, padding: 14, flexDirection: "row", gap: 12, alignItems: "center" }}>
-          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: c.night2, alignItems: "center", justifyContent: "center" }}>
-            <MiniBalloon type={first?.b.category ?? "study"} size={24} />
+        <View style={{ backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 20, padding: 14, flexDirection: "row", gap: 12, alignItems: "center" }}>
+          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: c.accentSoft, alignItems: "center", justifyContent: "center" }}>
+            <Icon name="bell" size={20} color={c.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <T v="label" color={c.fSub}>Focus&apos;d · now</T>
-            <T v="bodyStrong" color={FIXED.white}>
-              {first ? `${first.b.title} at ${fmt(first.start)}` : "Your next session"}
-            </T>
-            <T v="small" color={c.fInk}>Starts in 5 minutes. {buddy}&apos;s ready when you are.</T>
+            <T v="caps">Zeroed · now</T>
+            <Text style={{ fontFamily: FONTS.bold, fontSize: FS.body, color: c.text, marginTop: 2 }}>{first ? `${first.b.title} at ${fmt(first.start)}` : "Your next block"}</Text>
+            <T v="small">Starts in 5 minutes.</T>
           </View>
         </View>
         {first ? (
@@ -81,13 +73,12 @@ export default function Nudges() {
           </T>
         ) : null}
       </View>
-      <Btn title="Turn on nudges" loading={busy} onPress={turnOn} testID="nudges-on" />
-      <Btn
-        kind="link"
+      <Btn title="Turn on heads-ups" loading={busy} onPress={turnOn} testID="nudges-on" />
+      <LinkBtn
         title="Not now"
         testID="nudges-off"
         onPress={() => {
-          setPrefs({ nudge: false });
+          setPrefs({ nudge: false, notStarted: false });
           done();
         }}
       />

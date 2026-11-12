@@ -1,22 +1,21 @@
-import React from "react";
-import { FS, DOT_START } from "@/constants/focusd";
-import { View } from "react-native";
+import React, { useState } from "react";
+import { View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
-import { Btn, Screen, T } from "@/components/fd/ui";
-import { Dot } from "@/components/fd/DotCharacter";
-import { Bubble } from "@/components/fd/shared";
+import { FocusArc } from "@/components/z/FocusArc";
+import { Btn, LinkBtn, Screen, T } from "@/components/z/ui";
+import { FS } from "@/constants/theme";
 import { useAuth } from "@/lib/auth-context";
-import { useFd } from "@/lib/prefs-context";
+import { useZ } from "@/lib/prefs-context";
 
 export default function Welcome() {
   const router = useRouter();
-  const { c } = useFd();
+  const { c } = useZ();
+  const { width } = useWindowDimensions();
   const { startAnonymous } = useAuth();
-  const [line, setLine] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Start first, account later: a guest session now, "Save Dot" after the first pop.
+  // Start first, account later: a guest session now, "Save your progress" from Me.
   const start = async () => {
     setError(null);
     setBusy(true);
@@ -24,25 +23,27 @@ export default function Welcome() {
     setBusy(false);
     if (r.error) setError(`Couldn't get started: ${r.error}`);
   };
+
   return (
     <Screen>
       <View style={{ flex: 1 }} />
-      <View style={{ height: 300, alignItems: "center", justifyContent: "flex-end", zIndex: 10 }}>
-        <View style={{ position: "absolute", top: 0, zIndex: 2 }} pointerEvents="none">
-          <Bubble name="DOT" text={line ?? "Hi! Let's plan your focus together."} />
-        </View>
-        <Dot mood="happy" size={260} grow={DOT_START} onBoop={(l) => { setLine(l); setTimeout(() => setLine(null), 1600); }} />
+      <View style={{ alignItems: "center" }}>
+        <FocusArc width={Math.min(300, width - 80)} progress={0.62} color={c.accent} />
       </View>
-      <View style={{ alignItems: "center", gap: 10 }}>
-        <T v="display" style={{ fontSize: FS.hero, lineHeight: 56 }}>Focus&apos;d</T>
-        <T color="sub" style={{ textAlign: "center", fontSize: FS.lg }}>
-          Plan 2 to 4 focus sessions a day.{"\n"}Fill a balloon in each one. Pop it when you&apos;re done.
+      <View style={{ alignItems: "center", gap: 10, marginTop: 6 }}>
+        <T v="page" style={{ fontSize: FS.big, lineHeight: 40 }}>Zeroed</T>
+        <T v="body" color="text2" style={{ textAlign: "center", fontSize: FS.body, lineHeight: 22, maxWidth: 300 }}>
+          Plan two to four focus blocks a day. Zeroed counts you down through each one, and finished minutes add up to your Focus Score.
         </T>
       </View>
       <View style={{ flex: 1 }} />
-      {error ? <T v="small" color={c.danger} style={{ textAlign: "center" }}>{error}</T> : null}
+      {error ? (
+        <T v="small" color={c.bad} style={{ textAlign: "center" }}>
+          {error}
+        </T>
+      ) : null}
       <Btn title="Get started" onPress={start} loading={busy} testID="get-started" />
-      <Btn kind="link" title="I already have an account" onPress={() => router.push("/(auth)/sign-in")} testID="have-account" />
+      <LinkBtn title="I already have an account" onPress={() => router.push("/(auth)/sign-in")} testID="have-account" />
     </Screen>
   );
 }

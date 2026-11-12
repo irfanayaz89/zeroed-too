@@ -1,268 +1,235 @@
+/** Full-screen focus mode: the big arc and countdown, +5 min and Done, then a completion screen. */
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Haptics from "expo-haptics";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
+import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import Animated, {
-  cancelAnimation,
   Easing,
   FadeIn,
-  runOnJS,
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSequence,
-  withSpring,
   withTiming,
-  ZoomIn,
 } from "react-native-reanimated";
-import { FONTS, FOCUS_TYPES, FS, FIXED } from "@/constants/focusd";
-import { Balloon, type BalloonFace } from "@/components/fd/Balloon";
-import { Particles, type Pt } from "@/components/fd/Particles";
-import { useFd } from "@/lib/prefs-context";
-import { useFocusSession } from "@/lib/focus-session";
-import { useFocusActions, useFocusOverview } from "@/hooks/useFocusData";
-import { challengeOf, rangeLabel } from "@/lib/focus";
+import { FONTS, FS, GOOD_DAY_SCORE } from "@/constants/theme";
+import { BlockHero } from "@/components/z/BlockHero";
+import { Countdown } from "@/components/z/Countdown";
+import { Icon } from "@/components/z/icons";
+import { CountUp } from "@/components/z/ScoreRing";
+import { useToast } from "@/components/z/toast";
+import { Btn, EASE_OUT, Press, RoundBtn, T } from "@/components/z/ui";
+import { msAt, useBlockActions } from "@/hooks/useBlockActions";
+import { useFocusOverview, useNow } from "@/hooks/useFocusData";
+import { challengeOf, extendBlocker, fmt, nowMinutes, nowState } from "@/lib/focus";
 import { useAuth } from "@/lib/auth-context";
+import { haptic } from "@/lib/haptics";
+import { usePrefs, useZ } from "@/lib/prefs-context";
 
-const HOLD_MS = 800;
+/** Faint star dust: fixed positions (x %, y %, radius, brighter?). */
+const STARS: [number, number, number, boolean][] = [
+  [12, 18, 0.5, true], [78, 9, 0.5, false], [88, 34, 0.75, true], [22, 52, 0.5, false], [64, 61, 0.5, true],
+  [8, 74, 0.75, false], [47, 14, 0.5, true], [92, 70, 0.5, false], [34, 83, 0.5, true], [70, 88, 0.5, false],
+];
 
-function Pill({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
-  const { c } = useFd();
+function Backdrop({ glowTop }: { glowTop: number }) {
+  const { c, reduceMotion } = useZ();
+  const { width, height } = useWindowDimensions();
+  const k = useSharedValue(1);
+  useEffect(() => {
+    if (reduceMotion) return;
+    k.value = 0;
+    k.value = withRepeat(withSequence(withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }), withTiming(0, { duration: 3000, easing: Easing.inOut(Easing.ease) })), -1);
+    return () => cancelAnimation(k);
+  }, [reduceMotion, k]);
+  const glow = useAnimatedStyle(() => ({ opacity: 0.7 + 0.3 * k.value, transform: [{ scale: 0.85 + 0.25 * k.value }] }));
   return (
-    <Pressable
-      testID={testID}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        backgroundColor: "rgba(255,255,255,0.12)",
-        borderRadius: 999,
-        paddingVertical: 9,
-        paddingHorizontal: 16,
-        opacity: pressed ? 0.7 : 1,
-      })}
-    >
-      <Text style={{ color: c.fInk, fontFamily: FONTS.heavy, fontSize: FS.md }}>{label}</Text>
-    </Pressable>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Svg width={width} height={height} style={{ position: "absolute", opacity: 0.5 }}>
+        {STARS.map(([x, y, r, bright], i) => (
+          <Circle key={i} cx={(x / 100) * width} cy={(y / 100) * height} r={r} fill={bright ? c.text2 : c.text3} />
+        ))}
+      </Svg>
+      <Animated.View style={[{ position: "absolute", left: width / 2 - 210, top: glowTop, width: 420, height: 420 }, glow]}>
+        <Svg width={420} height={420}>
+          <Defs>
+            <RadialGradient id="fglow" cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor={c.accent} stopOpacity={0.18} />
+              <Stop offset="0.65" stopColor={c.accent} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={210} cy={210} r={210} fill="url(#fglow)" />
+        </Svg>
+      </Animated.View>
+    </View>
+  );
+}
+
+interface Finished {
+  byTap: boolean;
+  title: string;
+  before: number;
+  after: number;
+}
+
+function Completion({ f, onBack }: { f: Finished; onBack: () => void }) {
+  const { c, reduceMotion } = useZ();
+  const ring = useSharedValue(0);
+  useEffect(() => {
+    if (!reduceMotion) ring.value = withTiming(1, { duration: 1100, easing: EASE_OUT });
+  }, [ring, reduceMotion]);
+  const burst = useAnimatedStyle(() => ({ opacity: 0.9 * (1 - ring.value), transform: [{ scale: 0.3 + 1.3 * ring.value }] }));
+  const gain = Math.max(0, f.after - f.before);
+  const crossed = f.before < GOOD_DAY_SCORE && f.after >= GOOD_DAY_SCORE;
+  return (
+    <Animated.View entering={FadeIn.duration(350)} style={[StyleSheet.absoluteFill, { backgroundColor: c.bg, alignItems: "center", justifyContent: "center", gap: 14, padding: 40 }]} testID="focus-complete">
+      <Animated.View pointerEvents="none" style={[{ position: "absolute", width: 260, height: 260, borderRadius: 130, borderWidth: 2, borderColor: c.accent }, burst]} />
+      <T v="caps">{f.byTap ? "BLOCK COMPLETE" : "TIME'S UP"}</T>
+      <CountUp value={gain} prefix="+" ms={700} style={{ fontFamily: FONTS.displaySemi, fontSize: FS.gain, color: c.accent, fontVariant: ["tabular-nums"] }} />
+      <T v="page">{f.byTap ? "Nice work" : "Block finished"}</T>
+      <T v="body" color="text2" style={{ textAlign: "center", fontSize: FS.body, lineHeight: 22 }}>
+        {f.title} is logged. Focus Score today is now {f.after}
+        {crossed ? ", which makes it a good day" : ""}.
+      </T>
+      <Btn kind="pri" title="Back to today" testID="focus-back" onPress={onBack} style={{ alignSelf: "stretch", height: 52, marginTop: 10 }} />
+    </Animated.View>
   );
 }
 
 export default function FocusScreen() {
-  const { c } = useFd();
+  const { c, reduceMotion } = useZ();
+  const { prefs } = usePrefs();
   const router = useRouter();
+  const toast = useToast();
   const insets = useSafeAreaInsets();
-  const { active, totalSec, elapsedSec, togglePause, addFive, finish, setCelebration } = useFocusSession();
+  const { width, height } = useWindowDimensions();
   const o = useFocusOverview();
+  const act = useBlockActions(o);
+  const now = useNow(1000);
+  const nowMin = nowMinutes(now);
   const ifThen = challengeOf(useAuth().profile?.focus_struggle)?.plan ?? null;
-  const { patchLog } = useFocusActions();
-  const [, setTick] = useState(0);
-  const [popped, setPopped] = useState<Pt | null>(null);
-  const [boopLine, setBoopLine] = useState<string | null>(null);
-  const [holding, setHolding] = useState(false);
-  const [stage, setStage] = useState({ w: 390, h: 400, y: 0 });
-  const hold = useSharedValue(0);
-  const timerPulse = useSharedValue(1);
-  const boopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const poppingRef = useRef(false);
+  const [finished, setFinished] = useState<Finished | null>(null);
+  const [key, setKey] = useState<string | null>(null);
+  const finishing = useRef(false);
+
+  // Enter: fade in from scale 1.04 over 350ms.
+  const enter = useSharedValue(reduceMotion ? 1 : 0);
+  useEffect(() => {
+    enter.value = withTiming(1, { duration: 350, easing: EASE_OUT });
+  }, [enter]);
+  const enterStyle = useAnimatedStyle(() => ({ opacity: enter.value, transform: [{ scale: 1.04 - 0.04 * enter.value }] }));
 
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 500);
     activateKeepAwakeAsync("focus").catch(() => {});
     return () => {
-      clearInterval(id);
       deactivateKeepAwake("focus").catch(() => {});
     };
   }, []);
 
-  const close = useCallback(() => {
-    if (router.canGoBack()) router.back();
-    else router.replace("/(tabs)/now");
-  }, [router]);
+  const close = useCallback(() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/now")), [router]);
 
-  // Nothing to focus on (e.g. opened from a stale link).
+  // Focus mode stays on the block it was opened for.
+  const st = nowState(o.today, nowMin);
+  const runningKey = st.kind === "block" ? st.s.key : null;
   useEffect(() => {
-    if (!active && !popped) close();
-  }, [active, popped, close]);
+    if (!key && runningKey) setKey(runningKey);
+  }, [key, runningKey]);
+  const s = key ? (o.today.find((x) => x.key === key) ?? null) : null;
 
-  const el = elapsedSec();
-  const left = Math.max(0, totalSec - el);
-  const p = totalSec ? Math.min(1, el / totalSec) : 0;
-  const mins = Math.ceil(left / 60);
-  const paused = !!active?.pausedAt;
-  const full = left <= 0;
+  const finish = useCallback(
+    (byTap: boolean) => {
+      if (!s || finishing.current) return;
+      finishing.current = true;
+      haptic.success();
+      const { before, after } = act.done(s, { quiet: true });
+      setFinished({ byTap, title: s.block.title, before, after });
+    },
+    [s, act]
+  );
 
-  let face: BalloonFace = "start";
-  let say = "Let's go. Small breaths first.";
-  if (full) {
-    face = "full";
-    say = "Full! Hold to pop me.";
-  } else if (left <= 300) {
-    face = "excited";
-    say = "5 minutes. Almost full!";
-  } else if (p >= 0.5) {
-    face = "happy";
-    say = "Halfway. One thing at a time.";
-  } else if (p >= 0.06) {
-    face = "calm";
-    say = "You've got this.";
-  }
-  if (paused) say = "Paused. Take a breath.";
-
-  const lastFace = useRef<BalloonFace>(face);
   useEffect(() => {
-    if (face === "full" && lastFace.current !== "full") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    lastFace.current = face;
-  }, [face]);
-
-  const doPop = useCallback(() => {
-    if (!active || poppingRef.current) return;
-    poppingRef.current = true;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-    const early = elapsedSec() < totalSec - 1;
-    const scoreBefore = o.todayScore;
-    const overallBefore = o.overall;
-    const minutes = finish();
-    const block = o.blocks.find((b) => b.id === active.blockId);
-    if (block) {
-      const log = o.logs.find((l) => l.block_id === block.id && l.date === active.date) ?? null;
-      patchLog.mutate({
-        s: { block, date: active.date, log },
-        patch: {
-          completed: true,
-          skipped: false,
-          completed_at: new Date().toISOString(),
-          started_at: new Date(active.startedAt).toISOString(),
-          focused_minutes: Math.min(active.plannedMins + active.extraMins, minutes),
-        },
-      });
-    }
-    setPopped({ x: stage.w / 2, y: stage.y + stage.h * 0.36 });
-    setTimeout(() => {
-      setCelebration({ mins: minutes, early, scoreBefore, overallBefore, at: Date.now() });
+    if (o.loading || finished || finishing.current) return;
+    // Nothing running (e.g. opened from a stale link), or the block was ended elsewhere.
+    if ((!key && !runningKey) || (s && s.status !== "todo")) {
       close();
-    }, 950);
-  }, [active, elapsedSec, totalSec, o.todayScore, o.overall, o.blocks, o.logs, finish, patchLog, stage, setCelebration, close]);
+      return;
+    }
+    if (s && nowMin >= s.end) finish(false);
+  }, [o.loading, key, runningKey, s, nowMin, finished, finish, close]);
 
-  const startHold = () => {
-    if (!active || popped) return;
-    setHolding(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    hold.value = withTiming(1, { duration: HOLD_MS, easing: Easing.linear }, (done) => {
-      if (done) runOnJS(doPop)();
-    });
-  };
-  const endHold = () => {
-    setHolding(false);
-    if (poppingRef.current) return;
-    cancelAnimation(hold);
-    hold.value = withTiming(0, { duration: 150 });
-  };
-
-  const fillStyle = useAnimatedStyle(() => ({ width: `${hold.value * 100}%` }));
-  const grow = useAnimatedStyle(() => ({ transform: [{ scale: 1 + hold.value * 0.08 }] }));
-  const timerStyle = useAnimatedStyle(() => ({ transform: [{ scale: timerPulse.value }] }));
-
-  const onBoop = (line: string) => {
-    setBoopLine(line);
-    if (boopTimer.current) clearTimeout(boopTimer.current);
-    boopTimer.current = setTimeout(() => setBoopLine(null), 1600);
+  const plusFive = () => {
+    if (!s) return;
+    const blocker = extendBlocker(o.today, s, 5);
+    if (blocker) {
+      haptic.warn();
+      toast(`Can't extend: ${blocker.block.title} starts at ${fmt(blocker.start)}`);
+      return;
+    }
+    haptic.select();
+    act.extend(s, 5);
+    toast("Added 5 minutes");
   };
 
-  if (!active && !popped) return <View style={{ flex: 1, backgroundColor: c.night }} />;
-  const type = active?.type ?? "study";
+  const compact = height < 760;
+  const heroTop = compact ? 36 : 70;
+  const arcW = Math.min(340, width - 44);
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.night, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 18 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20 }}>
-        <Pill label="⌄ Minimise" onPress={close} testID="focus-minimise" />
-        {!popped ? <Pill label={paused ? "Resume" : "Pause"} onPress={togglePause} testID="focus-pause" /> : null}
-      </View>
-
-      {active ? (
-        <View style={{ alignItems: "center", marginTop: 14, paddingHorizontal: 24 }}>
-          <Text style={{ color: c.fSub, fontFamily: FONTS.heavy, fontSize: FS.caption, letterSpacing: 1, textTransform: "uppercase" }}>
-            {FOCUS_TYPES[type].label} · Session {active.index} of {active.count}
-          </Text>
-          <Text style={{ color: c.fInk, fontFamily: FONTS.heavy, fontSize: FS.h3, marginTop: 2, textAlign: "center" }}>{active.title}</Text>
-          <Text style={{ color: c.fSub, fontFamily: FONTS.semibold, fontSize: FS.md }}>{rangeLabel(active.start, active.end + active.extraMins)}</Text>
-          {ifThen && p < 0.15 ? (
-            <Animated.View entering={FadeIn.duration(300)} style={{ marginTop: 10, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 16, paddingVertical: 8, paddingHorizontal: 14 }}>
-              <Text style={{ color: c.fInk, fontFamily: FONTS.bold, fontSize: FS.sm, textAlign: "center" }}>Your plan: {ifThen}</Text>
-            </Animated.View>
-          ) : null}
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <Animated.View style={[{ flex: 1, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24, paddingHorizontal: 22, alignItems: "center" }, enterStyle]}>
+        <Backdrop glowTop={insets.top + 16 + 40 + heroTop - 40} />
+        <View style={{ width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <RoundBtn icon="down" label="Leave focus mode" onPress={close} testID="focus-leave" />
+          <T v="caps" style={{ fontFamily: FONTS.heavy, fontSize: FS.caps, letterSpacing: 2.2 }}>FOCUS MODE</T>
+          <View style={{ width: 40 }} />
         </View>
-      ) : null}
-
-      <View style={{ height: 30, alignItems: "center", justifyContent: "center", marginTop: 8 }}>
-        {!popped ? (
-          <Animated.Text key={boopLine ?? say} entering={FadeIn.duration(250)} style={{ color: c.fInk, fontFamily: FONTS.bold, fontSize: FS.lg }}>
-            {boopLine ?? say}
-          </Animated.Text>
+        {s ? (
+          <>
+            <View style={{ marginTop: heroTop }}>
+              <BlockHero big width={arcW} mode="block" title={s.block.title} from={s.start} to={s.end} progress={(nowMin - s.start) / Math.max(1, s.mins)} />
+            </View>
+            <View style={{ marginTop: 28 }}>
+              <Countdown big testID="focus-countdown" targetMs={msAt(s.date, s.end)} label="ENDS IN" title={s.block.title} />
+            </View>
+            {ifThen && (nowMin - s.start) / s.mins < 0.15 ? (
+              <Animated.View entering={FadeIn.duration(300)} style={{ marginTop: 18, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 14 }}>
+                <Text style={{ fontFamily: FONTS.semibold, fontSize: FS.sm, color: c.text2, textAlign: "center" }}>Your plan: {ifThen}</Text>
+              </Animated.View>
+            ) : null}
+            {prefs.liveActivity && Platform.OS === "ios" ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 18 }}>
+                <Icon name="phone" size={14} color={c.text3} />
+                <Text style={{ fontFamily: FONTS.semibold, fontSize: FS.caption, color: c.text3 }}>Also on your Lock Screen as a Live Activity</Text>
+              </View>
+            ) : null}
+            <View style={{ flex: 1 }} />
+            <View style={{ flexDirection: "row", gap: 12, width: "100%" }}>
+              <Press
+                testID="focus-plus5"
+                accessibilityLabel="Add 5 minutes"
+                onPress={plusFive}
+                style={{ flex: 1, height: 56, borderRadius: 18, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}
+              >
+                <Icon name="plus" size={20} color={c.text} strokeWidth={2.2} />
+                <Text style={{ fontFamily: FONTS.heavy, fontSize: FS.md, color: c.text }}>5 min</Text>
+              </Press>
+              <Press
+                testID="focus-done"
+                accessibilityLabel="Mark block as done"
+                onPress={() => finish(true)}
+                style={{ flex: 1.4, height: 56, borderRadius: 18, backgroundColor: c.accent, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}
+              >
+                <Icon name="check" size={20} color={c.onAccent} />
+                <Text style={{ fontFamily: FONTS.heavy, fontSize: FS.md, color: c.onAccent }}>Done</Text>
+              </Press>
+            </View>
+          </>
         ) : null}
-      </View>
-
-      <View
-        style={{ flex: 1, alignItems: "center", justifyContent: "center", opacity: paused ? 0.6 : 1 }}
-        onLayout={(e) => setStage({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height, y: e.nativeEvent.layout.y })}
-      >
-        <Animated.View style={grow}>
-          <Balloon progress={p} type={type} face={face} width={Math.min(300, stage.h * 0.68)} wobble={full} onBoop={onBoop} hidden={!!popped} />
-        </Animated.View>
-        {popped ? (
-          <Animated.Text
-            entering={ZoomIn.springify().damping(8)}
-            style={{ position: "absolute", top: "38%", fontFamily: FONTS.display, fontSize: FS.pop, color: FIXED.white }}
-          >
-            Pop!
-          </Animated.Text>
-        ) : null}
-      </View>
-
-      {!popped ? (
-        <>
-          <Animated.View style={[{ alignItems: "center", marginVertical: 10 }, timerStyle]}>
-            <Text style={{ fontFamily: FONTS.display, fontSize: FS.timer, color: c.fInk }} testID="focus-timer">
-              {full ? "Full!" : mins}
-              <Text style={{ fontFamily: FONTS.heavy, fontSize: FS.xl, color: c.fSub }}>{full ? " pop me" : " min left"}</Text>
-            </Text>
-          </Animated.View>
-          <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 20 }}>
-            <Pressable
-              testID="pop-button"
-              onPressIn={startHold}
-              onPressOut={endHold}
-              style={{
-                flex: 1,
-                minHeight: 58,
-                borderRadius: 999,
-                overflow: "hidden",
-                backgroundColor: full ? FIXED.lime : FIXED.white,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Animated.View style={[{ position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: c.accentLight }, fillStyle]} />
-              <Text style={{ fontFamily: FONTS.heavy, fontSize: FS.btn, color: FIXED.dotInk }}>
-                {holding ? (full ? "Keep holding…" : "Keep holding to pop early…") : "Done? Hold to pop"}
-              </Text>
-            </Pressable>
-            <Pressable
-              testID="plus-five"
-              onPress={() => {
-                addFive();
-                Haptics.selectionAsync().catch(() => {});
-                timerPulse.value = withSequence(withTiming(1.15, { duration: 120 }), withSpring(1));
-              }}
-              style={{ minHeight: 58, paddingHorizontal: 20, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}
-            >
-              <Text style={{ fontFamily: FONTS.heavy, fontSize: FS.lg, color: c.fInk }}>+5 min</Text>
-            </Pressable>
-          </View>
-        </>
-      ) : (
-        <View style={{ height: 120 }} />
-      )}
-
-      {popped ? <Particles origin={popped} count={Math.round(22 + 30 * p)} power={0.5 + p} /> : null}
+      </Animated.View>
+      {finished ? <Completion f={finished} onBack={close} /> : null}
     </View>
   );
 }
