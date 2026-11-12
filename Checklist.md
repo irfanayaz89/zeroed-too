@@ -1,72 +1,77 @@
-# Zeroed V1 — Feature Breakdown
+# Zeroed (adult) V1 checklist
 
----
+Spec: ADULT-APP-CONTEXT.md. Same features as the teen Focus'd V1, with no character, a dark-only theme, the polished arc and rolling countdown, full-screen focus mode and calm copy.
 
-## 1. Auth
+## Decisions still open
 
-- [x] Email sign up + sign in (Supabase Auth)
-- [x] Session persistence + auto token refresh
-- [x] COPPA notice for kids under 13
-- [x] Sign out + delete data
-- [ ] Delete account (double confirmation)
+- [ ] App name ("Zeroed" is a placeholder)
+- [ ] Default accent: Glacier (current) or Cobalt
+- [ ] Supabase: new project (recommended) or the shared one
+- [ ] Bundle ID (`com.zeronoiselabs.zeroedtoo` is a placeholder)
+- [ ] App icon and splash screen
 
-## 2. Onboarding
+## Base
 
-- [x] 5-screen flow with progress dots (welcome → account → about you → hobbies → challenge)
-- [x] Auto-generate starter timetable by age group (weekday + weekend)
-- [x] "Building your day…" animated loading screen
-- [x] Schedule preview — accept or start fresh
-- [ ] App Icon to use and splash screen
+- [x] Bootstrapped from the teen app (irfanayaz89/Zeroed PR #6 head)
+- [x] Renamed app, slug, scheme and bundle ID
+- [x] Character removed (Dot, balloon, mood faces)
+- [x] Line icons, no emoji, short calm copy
+- [x] Theme: Graphite (default) and Black, seven accents, Sora and Manrope
+- [x] Supabase schema trimmed (no age group, hobbies or buddy name) and `extra_minutes` added
 
-## 3. Today Tab
+## Auth
 
-- [ ] Focus Score banner (circular ring, 0–100, real-time updates)
-- [ ] "What should I do right now?" button (shows current/next block context)
-- [x] Current block highlight (NOW badge, countdown timer, UP NEXT card)
-- [x] Daily timeline — block cards with color-coded categories, time, checkbox
-- [x] Block detail bottom sheet (add note, mark complete/skipped)
-- [ ] Hobby prompt card ("Daily Spark" from DB)
+- [x] Welcome, email sign in and sign up, guest (anonymous) start
+- [x] Save your progress (guest to email)
+- [x] Sign out (warns guests), delete account (type DELETE)
 
-## 4. Plan Tab
+## Onboarding
 
-- [x] Weekday/weekend toggle + day selector
-- [ ] Add/edit/delete blocks (title, category, times, days, reminder settings)
-- [x] Block list sorted by time with swipe-to-delete
-- [x] Conflict detection (overlapping blocks warning)
+- [x] Name, focus areas (grouped by category, add your own), biggest challenge with an if-then plan
+- [x] Free times, blocks a day, block length
+- [x] 2-minute warm-up block on the real timer (skippable)
+- [x] Notification pre-prompt with a real example
+- [x] Building your plan, then plan preview (accept, or start with one block)
 
-## 5. Progress Tab
+## Now
 
-- [x] Daily reflection check-in (mood emoji + optional note)
-- [x] Focus Score summary (today, weekly average, personal best)
-- [x] Streak tracking with milestone celebrations (3, 7, 14, 30… days)
-- [x] Weekly bar chart + mood trend row
-- [x] Snooze report card
+- [x] Focus Score card (today and 7-day)
+- [x] Arc with orb, glow and tail; rolling-digit countdown
+- [x] Done, Note, Skip (move to later or skip today)
+- [x] Gap state with the next block and a wrap-up card for blocks that ended
+- [x] Day done and empty states
+- [x] Full-screen focus mode with +5 min, Done and auto-finish at time's up
 
-## 6. Profile Tab
+## Plan
 
-- [ ] User info (name, age group, hobbies, challenge) — all editable
-- [ ] Parent weekly summary link (shareable URL or email)
-- [ ] Notification settings (global toggle, default style, quiet hours)
-- [ ] Dark mode toggle
-- [ ] Export data + privacy/terms links
+- [x] Week strip with good-day dots, timeline with status pills
+- [x] Add and edit block (time, length, category, repeat days, overlap warning)
+- [x] Delete one day or the whole block, with Undo
+- [x] Running late (+15 to the current block, pushes later blocks)
+- [x] Better time tip and next-week review
 
-## 7. Notifications
+## Insights
 
-- [ ] Local push reminders: pre-alert + start-time per block
-- [ ] 3 styles: Gentle Nudge, Alarm, Motivational (with age-based quotes)
-- [ ] Quiet hours enforcement
-- [ ] Auto-reschedule on app launch + cancel on block edit/delete
+- [x] 7-day score ring, daily chart with a good-day line and rest days
+- [x] Streak (rest days never break it), focused hours, blocks done, best window, average block
+- [x] What slips, weekly check-in
 
-## 8. Dark Mode
+## Me
 
-- [ ] Full theme toggle (light/dark) across all screens, modals, and components
-- [ ] Preference saved to profile + AsyncStorage
-- [ ] Dark palette: #1A1A2E background, #16213E surfaces, accent colors unchanged
+- [x] Theme and accent pickers
+- [x] Default length, day start, heads-up time
+- [x] Live Activity, not-started nudge, quiet hours, haptics
+- [x] Export CSV
 
-## 9. Animations & Polish
+## Notifications and Live Activity
 
-- [ ] Block completion: checkbox animation + mini confetti + score increment
-- [ ] Focus Score ring animated fill + color transitions
-- [ ] Current block pulsing glow
-- [ ] Streak milestone full-screen confetti
-- [ ] Skeleton loaders for all data-loading states
+- [x] Heads-up before each block, quiet hours respected
+- [x] Nudge if a block started 5 minutes ago and was not opened
+- [x] Live Activity for the running block (iOS)
+
+## Verification
+
+- [x] `npx tsc --noEmit -p .` (one old error in `server/index.ts`)
+- [x] `npx eslint .`
+- [x] Web run with sample data: Now (block, gap, done, empty), focus mode, Plan, Insights, Me, add block, onboarding
+- [ ] Device run on iOS (Live Activity, notifications, haptics)

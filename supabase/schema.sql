@@ -1,4 +1,4 @@
--- Focus'd V1 database schema: the whole thing, in one file.
+-- Zeroed (adult edition) database schema: the whole thing, in one file.
 --
 -- There are no real users yet, so instead of migrations this file drops the
 -- app's tables and creates them fresh. Running it DELETES ALL APP DATA.
@@ -20,19 +20,16 @@ create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   name text,
   age int,
-  age_group text,
-  hobbies text[],
   focus_struggle text,
   onboarding_complete boolean not null default false,
   focus_areas text[],
   free_times text[],
   sessions_per_day int,
   session_length int,
-  buddy_name text,
   created_at timestamptz not null default now()
 );
 
--- Recurring focus sessions. Times are "HH:MM"; days_of_week uses 0 = Sunday.
+-- Recurring focus blocks. category: work, learning, health, personal, side. Times are "HH:MM"; days_of_week uses 0 = Sunday.
 create table public.timetable_blocks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -49,7 +46,7 @@ create table public.timetable_blocks (
 );
 create index timetable_blocks_user_idx on public.timetable_blocks (user_id);
 
--- What happened to one session on one day.
+-- What happened to one block on one day.
 create table public.daily_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -60,10 +57,13 @@ create table public.daily_logs (
   snoozed_count int not null default 0,
   block_note text,
   completed_at timestamptz,
-  -- Today's start after "Running late" ("HH:MM").
+  -- Today's start after "Running late" or "Move to later today" ("HH:MM").
   planned_start text,
+  -- Minutes added today with "+5 min" or "Running late".
+  extra_minutes int not null default 0,
+  -- First time the app showed this block running (no "haven't started" nudge after).
   started_at timestamptz,
-  -- Minutes actually focused (popping early counts what was done).
+  -- Minutes that count toward the Focus Score.
   focused_minutes int,
   created_at timestamptz not null default now(),
   unique (block_id, date)

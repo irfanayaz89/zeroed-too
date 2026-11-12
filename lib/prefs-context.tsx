@@ -1,58 +1,61 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  DOT_COLORS,
-  THEMES,
-  themeColors,
-  type DotBody,
-  type DotColorName,
-  type FdColors,
-  type ThemeName,
-} from "@/constants/focusd";
+import { useReducedMotion } from "react-native-reanimated";
+import { buildColors, type AccentName, type Colors, type ThemeName } from "@/constants/theme";
+import { setHapticsEnabled } from "@/lib/haptics";
 
-/** Device-level settings: how the app looks and what it may do on the lock screen. */
+/** Device-level settings: how the app looks and what it may do. */
 export interface Prefs {
   theme: ThemeName;
-  /** "system" follows the phone. */
-  appearance: "system" | "light" | "dark";
-  /** null = the theme's default Dot colour. */
-  dotColor: DotColorName | null;
+  /** null = the theme's default accent. */
+  accent: AccentName | null;
   liveActivity: boolean;
+  /** Heads-up notification before each block. */
   nudge: boolean;
+  /** Minutes before a block for the heads-up (2, 5 or 10). */
+  headsUp: number;
+  /** A second nudge if a block started and nothing was marked. */
+  notStarted: boolean;
+  quiet: boolean;
   /** Minutes after midnight. */
   quietStart: number;
   quietEnd: number;
+  haptics: boolean;
+  /** Minutes after midnight; new blocks are never suggested before this. */
+  dayStart: number;
 }
 
 const DEFAULT_PREFS: Prefs = {
-  theme: "burgundy",
-  appearance: "system",
-  dotColor: null,
+  theme: "graphite",
+  accent: null,
   liveActivity: true,
   nudge: true,
+  headsUp: 5,
+  notStarted: true,
+  quiet: true,
   quietStart: 22 * 60,
   quietEnd: 7 * 60,
+  haptics: true,
+  dayStart: 8 * 60,
 };
 
-const KEY = "focusd_prefs_v1";
+const KEY = "zeroed_prefs_v1";
 
 interface PrefsValue {
   prefs: Prefs;
   setPrefs: (patch: Partial<Prefs>) => void;
-  colors: FdColors;
-  isDark: boolean;
-  dot: DotBody;
-  dotColorName: DotColorName;
+  colors: Colors;
+  /** The system's Reduce Motion setting. */
+  reduceMotion: boolean;
   loaded: boolean;
 }
 
 const PrefsContext = createContext<PrefsValue | null>(null);
 
 export function PrefsProvider({ children }: { children: ReactNode }) {
-  const scheme = useColorScheme();
   const [prefs, setState] = useState<Prefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     AsyncStorage.getItem(KEY)
@@ -63,6 +66,8 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoaded(true));
   }, []);
 
+  useEffect(() => setHapticsEnabled(prefs.haptics), [prefs.haptics]);
+
   const setPrefs = useCallback((patch: Partial<Prefs>) => {
     setState((prev) => {
       const next = { ...prev, ...patch };
@@ -71,19 +76,10 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = useMemo<PrefsValue>(() => {
-    const isDark = prefs.appearance === "system" ? scheme === "dark" : prefs.appearance === "dark";
-    const dotColorName = prefs.dotColor ?? THEMES[prefs.theme].dot;
-    return {
-      prefs,
-      setPrefs,
-      colors: themeColors(prefs.theme, isDark),
-      isDark,
-      dot: DOT_COLORS[dotColorName],
-      dotColorName,
-      loaded,
-    };
-  }, [prefs, scheme, setPrefs, loaded]);
+  const value = useMemo<PrefsValue>(
+    () => ({ prefs, setPrefs, colors: buildColors(prefs.theme, prefs.accent), reduceMotion, loaded }),
+    [prefs, setPrefs, reduceMotion, loaded]
+  );
 
   return <PrefsContext.Provider value={value}>{children}</PrefsContext.Provider>;
 }
@@ -95,7 +91,7 @@ export function usePrefs(): PrefsValue {
 }
 
 /** Shorthand for the current colours. */
-export function useFd() {
-  const { colors, isDark, dot } = usePrefs();
-  return { c: colors, isDark, dot };
+export function useZ() {
+  const { colors, reduceMotion } = usePrefs();
+  return { c: colors, reduceMotion };
 }

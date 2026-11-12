@@ -1,252 +1,62 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { format } from "date-fns";
-import * as Haptics from "expo-haptics";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
-import { FIXED, FOCUS_TYPES, GOOD_DAY_SCORE } from "@/constants/focusd";
-import { Btn, Card, Screen, T } from "@/components/fd/ui";
-import { Dot, type DotHandle, type DotMood } from "@/components/fd/DotCharacter";
-import { Particles, type Pt } from "@/components/fd/Particles";
-import { MoodFace, MOOD_LIST } from "@/components/fd/MoodFace";
-import {
-  Bubble,
-  LateSheet,
-  MoodRow,
-  ReflectSheet,
-  ScoreCard,
-  ScoreInfoSheet,
-  StreakCelebration,
-  freeFor,
-  useBuddyName,
-  useStartFocus,
-} from "@/components/fd/shared";
-import { useFocusOverview, useFocusActions } from "@/hooks/useFocusData";
-import { useFocusSession } from "@/lib/focus-session";
-import { useFd, usePrefs } from "@/lib/prefs-context";
-import { useToast } from "@/components/fd/toast";
-import { dateKey, dur, fmt, isGood, nowState, rangeLabel, STREAK_MILESTONES, dotGrowth } from "@/lib/focus";
-import type { Mood } from "@/lib/types";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CATEGORIES, FONTS, FS, rgba } from "@/constants/theme";
+import { BlockHero } from "@/components/z/BlockHero";
+import { Countdown } from "@/components/z/Countdown";
+import { QuickActions } from "@/components/z/QuickActions";
+import { ScoreCard } from "@/components/z/ScoreCard";
+import { Icon } from "@/components/z/icons";
+import { NoteSheet, SkipSheet } from "@/components/z/sheets";
+import { Btn, Card, LinkBtn, Row, Screen, T } from "@/components/z/ui";
+import { msAt, useBlockActions } from "@/hooks/useBlockActions";
+import { useFocusOverview, useNow } from "@/hooks/useFocusData";
 import { useAuth } from "@/lib/auth-context";
+import { dur, fmt, greeting, nowMinutes, nowState, rangeLabel, untilText, type Session } from "@/lib/focus";
+import { useZ } from "@/lib/prefs-context";
 
-const SAVE_LATER_KEY = "focusd_save_later_v1";
+function UpNext({ s, nowMin }: { s: Session; nowMin: number }) {
+  const { c } = useZ();
+  return (
+    <Card testID="up-next">
+      <T v="caps" style={{ marginBottom: 10 }}>Up next</T>
+      <Row gap={12}>
+        <View style={{ width: 4, alignSelf: "stretch", borderRadius: 2, backgroundColor: CATEGORIES[s.cat].color }} />
+        <View style={{ flex: 1 }}>
+          <T v="bodyStrong">{s.block.title}</T>
+          <T v="small" style={{ marginTop: 2, fontVariant: ["tabular-nums"] }}>
+            {rangeLabel(s.start, s.end)} · {dur(s.mins)}
+          </T>
+        </View>
+        <View style={{ backgroundColor: c.accentSoft, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 9 }}>
+          <Text style={{ fontFamily: FONTS.heavy, fontSize: FS.tiny, color: c.accent }}>{untilText(s.start - nowMin)}</Text>
+        </View>
+      </Row>
+    </Card>
+  );
+}
 
 export default function NowScreen() {
   const o = useFocusOverview();
-  const { c } = useFd();
+  const { c } = useZ();
   const router = useRouter();
-  const toast = useToast();
-  const buddy = useBuddyName();
-  const { active, celebration, setCelebration, elapsedSec, totalSec } = useFocusSession();
-  const { patchLog } = useFocusActions();
-  const { isAnonymous } = useAuth();
-  const { prefs } = usePrefs();
-  const [saveLater, setSaveLater] = useState<string | null>(null);
+  const { profile } = useAuth();
+  const { width } = useWindowDimensions();
+  const now = useNow(1000);
+  const nowMin = nowMinutes(now);
+  const act = useBlockActions(o);
+  const [noteFor, setNoteFor] = useState<Session | null>(null);
+  const [skipFor, setSkipFor] = useState<Session | null>(null);
+
+  // Seeing a running block counts as starting it (no "haven't started" nudge).
+  const st0 = nowState(o.today, nowMin);
+  const running = st0.kind === "block" && !st0.s.log?.started_at ? st0.s : null;
+  const { patch } = act;
   useEffect(() => {
-    AsyncStorage.getItem(SAVE_LATER_KEY).then(setSaveLater).catch(() => {});
-  }, []);
-  const startFocus = useStartFocus();
-  const dotRef = useRef<DotHandle>(null);
-  const dotBox = useRef<View>(null);
-  const rootRef = useRef<View>(null);
-
-  const [sheet, setSheet] = useState<null | "score" | "late" | "reflect">(null);
-  const [reflectMood, setReflectMood] = useState<Mood | null>(null);
-  const [boopLine, setBoopLine] = useState<string | null>(null);
-  const [burst, setBurst] = useState<{ origin: Pt; target: Pt; id: number } | null>(null);
-  const [ringFrom, setRingFrom] = useState<number | undefined>(undefined);
-  const [hint, setHint] = useState<string | undefined>(undefined);
-  const [overallShown, setOverallShown] = useState<number | undefined>(undefined);
-  const [streakShow, setStreakShow] = useState<number | null>(null);
-  const [justPopped, setJustPopped] = useState(false);
-  const glow = useSharedValue(0);
-  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value, transform: [{ scale: 0.8 + glow.value * 0.4 }] }));
-  const boopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const st = nowState(o.today, o.nowMin, active?.key ?? null);
-  const s = "s" in st ? st.s : null;
-  const idx = s ? o.today.findIndex((x) => x.key === s.key) + 1 : 0;
-  const doneN = o.today.filter((x) => x.status === "done").length;
-  const doneMins = o.today.reduce((a, x) => a + x.actual, 0);
-
-  /* ---------- after a pop: confetti flies into Dot ---------- */
-  const scoreRef = useRef(o.todayScore);
-  scoreRef.current = o.todayScore;
-  const overallRef = useRef(o.overall);
-  overallRef.current = o.overall;
-  const streakRef = useRef(o.streak);
-  streakRef.current = o.streak;
-
-  useEffect(() => {
-    if (!celebration || Date.now() - celebration.at > 15000) return;
-    setJustPopped(true);
-    setRingFrom(celebration.scoreBefore);
-    setOverallShown(celebration.overallBefore);
-    const t = setTimeout(() => {
-      Promise.all([
-        new Promise<{ x: number; y: number; w: number; h: number }>((res) =>
-          dotBox.current?.measureInWindow((x, y, w, h) => res({ x, y, w, h })) ?? res({ x: 0, y: 0, w: 0, h: 0 })
-        ),
-        new Promise<{ x: number; y: number; w: number; h: number }>((res) =>
-          rootRef.current?.measureInWindow((x, y, w, h) => res({ x, y, w, h })) ?? res({ x: 0, y: 0, w: 0, h: 0 })
-        ),
-      ]).then(([d, r]) => {
-        const target = { x: d.x - r.x + d.w / 2, y: d.y - r.y + d.h * 0.6 };
-        setBurst({ origin: { x: r.w / 2, y: r.h * 0.38 }, target, id: celebration.at });
-        glow.value = withTiming(1, { duration: 400 });
-      });
-    }, 350);
-    return () => clearTimeout(t);
-  }, [celebration, glow]);
-
-  const landed = useRef(0);
-  const onLand = useCallback(
-    (last: boolean) => {
-      landed.current++;
-      if (landed.current % 5 === 0) dotRef.current?.squash();
-      if (!last || !celebration) return;
-      landed.current = 0;
-      setBurst(null);
-      dotRef.current?.hop();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      const after = scoreRef.current;
-      const crossed = celebration.scoreBefore < GOOD_DAY_SCORE && after >= GOOD_DAY_SCORE;
-      setRingFrom(undefined);
-      setOverallShown(undefined);
-      setHint(crossed ? `Good day! ${buddy} grew a little` : undefined);
-      glow.value = withSequence(withTiming(1, { duration: 200 }), withTiming(0, { duration: 1800 }));
-      setTimeout(() => {
-        setJustPopped(false);
-        setHint(undefined);
-        setCelebration(null);
-        if (crossed && STREAK_MILESTONES.includes(streakRef.current)) setStreakShow(streakRef.current);
-      }, 2600);
-    },
-    [celebration, buddy, glow, setCelebration]
-  );
-
-  /* ---------- copy for each state ---------- */
-  let title = "Ready when you are";
-  let bub = "";
-  let mood: DotMood = "calm";
-  let card: React.ReactNode = null;
-  let btns: React.ReactNode = null;
-  const meta = s ? `${FOCUS_TYPES[s.type].label} · ${rangeLabel(s.start, s.end)} · ${idx} of ${o.today.length} today` : "";
-
-  const leftMin = active ? Math.max(0, Math.ceil((totalSec - elapsedSec()) / 60)) : 0;
-
-  if (st.kind === "ready" && s) {
-    title = "Ready when you are";
-    bub = active ? "I'll be here when you pop it." : `${s.block.title.split(" ")[0]} now? I'll wait right here.`;
-    card = (
-      <Card style={{ alignItems: "center" }}>
-        <T v="eyebrow" color="accent">{active ? "Focusing now" : "Next session · now"}</T>
-        <T v="h2" style={{ textAlign: "center", marginTop: 2 }}>{s.block.title}</T>
-        <T v="small" style={{ textAlign: "center" }}>{meta}</T>
-      </Card>
-    );
-    btns = active ? (
-      <Btn title="Back to focus" onPress={() => router.push("/focus")} testID="back-to-focus" />
-    ) : (
-      <>
-        <Btn title="Start focus" onPress={() => startFocus(s, o.today)} testID="start-focus" />
-        <Btn kind="secondary" title="Running late" onPress={() => setSheet("late")} testID="running-late" />
-      </>
-    );
-  } else if (st.kind === "between" && s) {
-    title = "Free for a bit";
-    bub = prefs.nudge ? `Rest up. I'll nudge you at ${fmt(s.start - 5)}.` : `Rest up. See you at ${fmt(s.start)}.`;
-    card = (
-      <Card style={{ alignItems: "center" }}>
-        <T v="eyebrow" color="accent">Next session · {fmt(s.start)}</T>
-        <T v="h2" style={{ textAlign: "center", marginTop: 2 }}>{s.block.title}</T>
-        <T v="small" style={{ textAlign: "center" }}>{meta}</T>
-        <T v="small" style={{ marginTop: 4 }}>Free for {freeFor(s.start - o.nowMin)}</T>
-      </Card>
-    );
-    btns = (
-      <>
-        <Btn title="Start early" onPress={() => startFocus(s, o.today)} testID="start-focus" />
-        <Btn kind="secondary" title="Running late" onPress={() => setSheet("late")} testID="running-late" />
-      </>
-    );
-  } else if (st.kind === "missed" && s) {
-    title = "That one slipped by";
-    bub = "No harm done. Want to fit it in?";
-    card = (
-      <Card style={{ alignItems: "center" }}>
-        <T v="eyebrow" color="accent">Planned for {fmt(s.start)}</T>
-        <T v="h2" style={{ textAlign: "center", marginTop: 2 }}>{s.block.title}</T>
-        <T v="small" style={{ textAlign: "center" }}>{meta}</T>
-      </Card>
-    );
-    btns = (
-      <>
-        <Btn title="Do it now" onPress={() => startFocus(s, o.today)} testID="start-focus" />
-        <Btn
-          kind="secondary"
-          title="Skip it"
-          onPress={() => {
-            patchLog.mutate({ s, patch: { skipped: true } });
-            toast(`Skipped ${s.block.title}`, { label: "Undo", onPress: () => patchLog.mutate({ s, patch: { skipped: false } }) });
-          }}
-        />
-      </>
-    );
-  } else if (st.kind === "done") {
-    title = "All popped!";
-    mood = "happy";
-    bub = doneN === o.today.length ? `${doneN} for ${o.today.length}. Sleep well, I'm stuffed.` : `${doneN} of ${o.today.length} popped. Tomorrow's a fresh balloon.`;
-    const r = o.todayReflection;
-    card = (
-      <>
-        <Card>
-          <T v="eyebrow" color="accent">Today</T>
-          <T v="h2">{dur(doneMins)} focused</T>
-          <T v="small">{doneN} of {o.today.length} sessions popped</T>
-        </Card>
-        {r?.mood ? (
-          <Card onPress={() => { setReflectMood(r.mood); setSheet("reflect"); }} style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-            <MoodFace mood={r.mood} size={40} />
-            <View style={{ flex: 1 }}>
-              <T v="bodyStrong">Today felt {MOOD_LIST.find((m) => m.id === r.mood)?.label.toLowerCase()}</T>
-              <T v="small">{r.note ? `"${r.note}"` : "Saved to your week"}</T>
-            </View>
-          </Card>
-        ) : (
-          <Card style={{ gap: 8 }}>
-            <T v="bodyStrong">How did today feel?</T>
-            <MoodRow value={null} onPick={(m) => { setReflectMood(m); setSheet("reflect"); }} />
-          </Card>
-        )}
-      </>
-    );
-    btns = <Btn title="See tomorrow" onPress={() => router.push({ pathname: "/plan", params: { day: "tomorrow" } })} />;
-  } else {
-    title = "Nothing planned";
-    mood = "sleep";
-    bub = "A rest day. I'm napping.";
-    card = (
-      <Card style={{ alignItems: "center" }}>
-        <T v="h2">No focus sessions today</T>
-        <T v="small">Rest counts too. Your streak won&apos;t mind.</T>
-      </Card>
-    );
-    btns = <Btn title="Add a session" onPress={() => router.push("/add-block")} />;
-  }
-
-  if (justPopped && celebration) {
-    title = "Nice one!";
-    bub = celebration.early ? `Popped early. ${celebration.mins} minutes still counts!` : "That one felt good!";
-    mood = "calm";
-  }
-
-  const say = (line: string) => {
-    setBoopLine(line);
-    if (boopTimer.current) clearTimeout(boopTimer.current);
-    boopTimer.current = setTimeout(() => setBoopLine(null), 1800);
-  };
+    if (running) patch(running, { started_at: new Date().toISOString() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running?.key]);
 
   if (o.loading) {
     return (
@@ -256,84 +66,97 @@ export default function NowScreen() {
     );
   }
 
-  return (
-    <View ref={rootRef} style={{ flex: 1, backgroundColor: c.bg }} collapsable={false}>
-      <Screen tabs>
-        <View>
-          <T v="eyebrow">{format(o.now, "EEE d MMM")} · {fmt(o.nowMin)}</T>
-          <T v="display" testID="now-title">{title}</T>
-        </View>
+  const st = st0;
+  const arcW = Math.min(320, width - 70);
+  const name = profile?.name?.trim();
+  const doneList = o.today.filter((s) => s.status === "done");
+  const goPlan = () => router.push("/plan");
 
-        {active ? (
-          <Pressable
-            onPress={() => router.push("/focus")}
-            style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.night, borderRadius: 18, padding: 12 }}
-          >
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: FIXED.lime }} />
-            <T v="bodyStrong" color={c.fInk} style={{ flex: 1 }}>
-              {leftMin <= 0 ? "Balloon is full · pop it" : `Focusing · ${active.title} · ${leftMin} min left`}
+  let body: React.ReactNode;
+  if (st.kind === "empty") {
+    body = (
+      <>
+        <View style={{ alignItems: "center", gap: 10, paddingTop: 26, paddingHorizontal: 6 }}>
+          <T v="display" style={{ textAlign: "center" }}>Nothing planned yet</T>
+          <T v="body" color="text2" style={{ textAlign: "center", maxWidth: 280, lineHeight: 21 }}>
+            Add two to four focus blocks and Zeroed will count you down through each one.
+          </T>
+        </View>
+        <Btn icon="plus" title="Plan today" testID="plan-today" onPress={() => router.push("/add-block")} />
+      </>
+    );
+  } else if (st.kind === "done") {
+    body = (
+      <>
+        <View style={{ alignItems: "center", gap: 10, paddingTop: 26, paddingHorizontal: 6 }} testID="day-done">
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: rgba(c.good, 0.16), alignItems: "center", justifyContent: "center" }}>
+            <Icon name="check" size={32} color={c.good} />
+          </View>
+          <T v="display" style={{ marginTop: 6 }}>That&apos;s the day</T>
+          <T v="body" color="text2" style={{ textAlign: "center", maxWidth: 290, lineHeight: 21 }}>
+            {doneList.length} of {o.today.length} blocks done, {dur(doneList.reduce((a, s) => a + s.actual, 0))} of focus. Tomorrow&apos;s plan is ready when you are.
+          </T>
+        </View>
+        <Btn kind="ghost" icon="plan" title="Look at tomorrow" onPress={() => router.push({ pathname: "/plan", params: { day: "tomorrow" } })} />
+      </>
+    );
+  } else {
+    const inBlock = st.kind === "block";
+    const s = st.s;
+    const from = inBlock && s ? s.start : st.kind === "gap" ? st.gapStart : 0;
+    const to = s ? (inBlock ? s.end : s.start) : 0;
+    const progress = s ? (nowMin - from) / Math.max(1, to - from) : 0;
+    body = (
+      <>
+        {st.ended ? (
+          <Card testID="wrap-up" style={{ gap: 10, borderColor: c.accent + "66" }}>
+            <T v="caps">Wrap up</T>
+            <T v="bodyStrong" style={{ fontSize: FS.mdPlus, lineHeight: 20 }}>
+              {st.ended.block.title} ended at {fmt(st.ended.end)}. Did it get done?
             </T>
-            <T v="bodyStrong" color={c.fSub}>Open ⌃</T>
-          </Pressable>
-        ) : null}
-
-        <ScoreCard o={o} todayFrom={ringFrom} overallShown={overallShown} hint={hint} onPress={() => setSheet("score")} />
-
-        <View style={{ height: 250, alignItems: "center", justifyContent: "flex-end", zIndex: 10 }}>
-          <View style={{ position: "absolute", top: 0, left: 0, right: 0, alignItems: "center", zIndex: 2 }} pointerEvents="none">
-            <Bubble name={buddy.toUpperCase()} text={boopLine ?? bub} hidden={!!burst} />
-          </View>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              { position: "absolute", bottom: 10, width: 220, height: 160, borderRadius: 110, backgroundColor: FIXED.glow },
-              glowStyle,
-            ]}
-          />
-          <View ref={dotBox} collapsable={false}>
-            <Dot ref={dotRef} mood={mood} size={210} grow={dotGrowth(o.goodDays)} onBoop={say} testID="dot" />
-          </View>
-        </View>
-
-        {card}
-        <View style={{ gap: 10 }}>{btns}</View>
-        {isAnonymous && !justPopped && saveLater !== dateKey(o.now) && o.logs.some((l) => l.completed) ? (
-          <Card style={{ gap: 6 }} testID="save-dot-card">
-            <T v="eyebrow" color="accent">You popped your first balloon</T>
-            <T v="bodyStrong">Save {buddy} so you don&apos;t lose it</T>
-            <T v="small">Your plan and {buddy} only live on this phone for now. Add an email to keep them safe.</T>
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
-              <Btn small title={`Save ${buddy}`} onPress={() => router.push("/save-account")} />
-              <Btn
-                small
-                kind="link"
-                title="Later"
-                onPress={() => {
-                  const k = dateKey(o.now);
-                  setSaveLater(k);
-                  AsyncStorage.setItem(SAVE_LATER_KEY, k).catch(() => {});
-                }}
-              />
-            </View>
+            <Row gap={8}>
+              <Btn kind="pri" flex title="Yes, done" testID="wrap-yes" onPress={() => st.ended && act.done(st.ended)} />
+              <Btn kind="secondary" flex title="Not this time" testID="wrap-no" onPress={() => st.ended && act.skip(st.ended, "Logged as skipped. No harm done.")} />
+            </Row>
           </Card>
         ) : null}
-        {!isGood(o.todayScore) && o.streak > 0 && st.kind !== "empty" ? (
-          <T v="small" style={{ textAlign: "center" }}>
-            {o.streak}-day streak. Reach {GOOD_DAY_SCORE} today to keep it growing.
-          </T>
+        {s ? (
+          <>
+            <View style={{ marginTop: 4 }}>
+              <BlockHero width={arcW} mode={inBlock ? "block" : "gap"} title={s.block.title} from={from} to={to} progress={progress} />
+            </View>
+            <View style={{ marginTop: 2 }}>
+              <Countdown testID="now-countdown" targetMs={msAt(s.date, to)} label={inBlock ? "ENDS IN" : "STARTS IN"} title={s.block.title} />
+            </View>
+            {inBlock ? (
+              <>
+                <QuickActions onDone={() => act.done(s)} onNote={() => setNoteFor(s)} onSkip={() => setSkipFor(s)} />
+                <Btn icon="focus" title="Go full screen" testID="go-full-screen" onPress={() => router.push("/focus")} />
+              </>
+            ) : null}
+          </>
         ) : null}
+        {st.next ? <UpNext s={st.next} nowMin={nowMin} /> : null}
+        <LinkBtn title="View the full day" chevron onPress={goPlan} testID="view-full-day" />
+      </>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <Screen tabs>
+        <View>
+          <T v="caps" style={{ fontSize: FS.caps }}>{format(now, "EEEE · MMM d")}</T>
+          <T v="display" style={{ marginTop: 2 }} testID="now-greeting">
+            {greeting(now)}
+            {name ? `, ${name}` : ""}
+          </T>
+        </View>
+        <ScoreCard today={o.todayScore} avg7={o.overall} restDay={o.restDay} onPress={() => router.push("/insights")} />
+        {body}
       </Screen>
-
-      {burst ? <Particles key={burst.id} origin={burst.origin} target={burst.target} count={40} onLand={onLand} /> : null}
-
-      <ScoreInfoSheet visible={sheet === "score"} onClose={() => setSheet(null)} o={o} />
-      <LateSheet visible={sheet === "late"} onClose={() => setSheet(null)} o={o} />
-      <ReflectSheet
-        visible={sheet === "reflect"}
-        initial={{ mood: reflectMood ?? o.todayReflection?.mood ?? null, note: o.todayReflection?.note ?? "" }}
-        onClose={() => setSheet(null)}
-      />
-      <StreakCelebration streak={streakShow} onClose={() => setStreakShow(null)} />
+      <NoteSheet s={noteFor} onClose={() => setNoteFor(null)} onSave={act.note} />
+      <SkipSheet s={skipFor} today={o.today} nowMin={nowMin} onClose={() => setSkipFor(null)} onMove={act.moveTo} onSkip={(x) => act.skip(x)} />
     </View>
   );
 }

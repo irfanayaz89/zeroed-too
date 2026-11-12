@@ -7,7 +7,7 @@ import {
   updateActivity,
   type LiveActivityConfig,
 } from "expo-live-activity";
-import { liveActivityColors } from "@/constants/theme/semantic";
+import { LIVE_ACTIVITY_COLORS as liveActivityColors } from "@/constants/theme";
 
 const ACTIVITY_ID_KEY = "zeroed_live_activity_id";
 

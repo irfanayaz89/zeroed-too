@@ -1,27 +1,27 @@
 {
   "expo": {
     "name": "Zeroed",
-    "slug": "zeroed",
+    "slug": "zeroed-too",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "zeroed",
-    "userInterfaceStyle": "automatic",
-    "backgroundColor": "#F5F5F7",
+    "scheme": "zeroedtoo",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#232427",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F5F5F7"
+      "backgroundColor": "#232427"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.zeronoiselabs.zeroed"
+      "bundleIdentifier": "com.zeronoiselabs.zeroedtoo"
     },
     "android": {
-      "package": "com.zeronoiselabs.zeroed",
+      "package": "com.zeronoiselabs.zeroedtoo",
       "adaptiveIcon": {
-        "backgroundColor": "#F5F5F7",
+        "backgroundColor": "#232427",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"

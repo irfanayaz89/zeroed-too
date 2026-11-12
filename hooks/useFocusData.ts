@@ -7,12 +7,10 @@ import type { DailyLog, DailyReflection, Mood, Profile, TimetableBlock } from "@
 import {
   dateKey,
   dayStats,
-  goodDayCount,
-  lastWeekOverall,
+  isGood,
   nowMinutes,
   overallScore,
   sessionsOn,
-  stageOf,
   streakOf,
   type Session,
 } from "@/lib/focus";
@@ -95,10 +93,10 @@ export function useFocusOverview() {
     const today = sessionsOn(now, blocks, logs);
     const todayStat = stats[stats.length - 1];
     const todayOver = today.length > 0 && !today.some((s) => s.status === "todo");
-    const good = goodDayCount(stats);
+    const last7 = stats.slice(-7);
     const reflections = reflQ.data ?? [];
     return {
-      loading: blocksQ.isLoading || logsQ.isLoading,
+      loading: blocksQ.isPending || logsQ.isPending,
       error: blocksQ.error || logsQ.error,
       now,
       nowMin: nowMinutes(now),
@@ -109,14 +107,15 @@ export function useFocusOverview() {
       today,
       todayScore: todayStat.score ?? 0,
       restDay: todayStat.score === null,
+      todayOver,
       overall: overallScore(stats, todayOver),
-      lastWeek: lastWeekOverall(stats),
-      best: Math.max(0, ...stats.map((d) => d.score ?? 0)),
-      goodDays: good,
-      stage: stageOf(good),
+      /** Last 7 days, today included. */
+      last7,
+      best7: Math.max(0, ...last7.map((d) => d.score ?? 0)),
+      good7: last7.filter((d) => isGood(d.score)).length,
+      planned7: last7.filter((d) => d.score !== null).length,
       streak: streakOf(stats),
       reflections,
-      todayReflection: reflections.find((r) => r.date === todayKey) ?? null,
       refetch: () => Promise.all([blocksQ.refetch(), logsQ.refetch(), reflQ.refetch()]),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
